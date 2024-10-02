@@ -1,0 +1,7 @@
+- name: Windows Update
+  ansible.windows.win_updates:
+    category_names: '*'
+    reject_list:
+    - '.*Preview.*'
+    - KB5034441
+    reboot: true

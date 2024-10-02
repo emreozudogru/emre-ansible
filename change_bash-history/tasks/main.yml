@@ -1,0 +1,24 @@
+- name: Set Bash history length for root (bashrc)
+  lineinfile:
+    path: /root/.bashrc
+    state: present
+    line: 'HISTSIZE=10000'
+    create: yes
+- name: Set Bash history timestamp format for root (bashrc)
+  lineinfile:
+    path: /root/.bashrc
+    state: present
+    line: 'HISTTIMEFORMAT="%Y-%m-%d %H:%M:%S "'
+    create: yes
+- name: Set Bash history length for skell (skel.bashrc)
+  lineinfile:
+    path: /etc/skel/.bashrc
+    state: present
+    line: 'HISTSIZE=10000'
+    create: yes
+- name: Set Bash history timestamp format for skell (skel.bashrc)
+  lineinfile:
+    path: /etc/skel/.bashrc
+    state: present
+    line: 'HISTTIMEFORMAT="%Y-%m-%d %H:%M:%S "'
+    create: yes

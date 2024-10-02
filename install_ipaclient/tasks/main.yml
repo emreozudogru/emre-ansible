@@ -1,0 +1,55 @@
+- name: Check if DNS server is set to {{ dns_server }}
+  shell: nmcli dev show | grep 'IP4.DNS' | grep '{{ dns_server }}'
+  register: dns_check
+  failed_when: dns_check.rc != 0
+  changed_when: false  # Ensure this task does not show as changed
+
+- name: Fail if DNS server is not set to 10.48.90.250
+  fail:
+    msg: "DNS server is not set to 10.48.90.250"
+  when: dns_check.rc != 0
+
+- name: Install required packages
+  yum:
+    name:
+      - ipa-client
+    state: present
+
+- name: Check if the machine is already joined to the IPA domain
+  stat:
+    path: /etc/ipa/default.conf
+  register: ipa_check
+  changed_when: false  # Ensure this task does not show as changed
+
+- name: Read IPA domain from configuration file
+  shell: grep '^domain = nyc.int.boldyn.net' /etc/ipa/default.conf
+  register: domain_check
+  failed_when: domain_check.rc != 0
+  when: ipa_check.stat.exists
+  changed_when: false  # Ensure this task does not show as changed
+
+- name: Fail if IPA domain is incorrect
+  fail:
+    msg: "Machine is joined to an incorrect IPA domain."
+  when: ipa_check.stat.exists and domain_check.rc != 0
+
+- name: Bypass IPA client installation if already joined
+  debug:
+    msg: "Machine is already joined to the correct IPA domain."
+  when: ipa_check.stat.exists and domain_check.rc == 0
+
+- name: Configure IPA client
+  command: >
+    ipa-client-install
+    --principal={{ ipa_principal }}
+    --password={{ ipa_password }}
+    --mkhomedir
+    --enable-dns-updates
+    --unattended
+  register: ipa_install
+  when: not ipa_check.stat.exists
+
+- name: Ensure IPA client installation was successful
+  debug:
+    msg: "IPA client installation result: {{ ipa_install.stdout }}"
+  when: not ipa_check.stat.exists

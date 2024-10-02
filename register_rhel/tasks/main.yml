@@ -1,0 +1,7 @@
+- name: Register RHEL and auto-subscribe to available content.
+  community.general.redhat_subscription:
+    state: present
+    username: "{{ rhel_username }}"
+    password: "{{ rhel_password }}"
+    auto_attach: true
+  when: ansible_os_family == 'RedHat' and ansible_distribution_major_version|int >= 8

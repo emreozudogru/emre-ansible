@@ -1,0 +1,46 @@
+- name: Install common tools
+  ansible.builtin.yum:
+    name:
+      - iotop
+      - nano
+      - tmux
+      - htop
+      - nload
+      - ipa-client
+      - ncdu
+    state: latest
+
+- name: Install and configure tools for RHEL 7
+  block:
+    - name: Install yum-cron for RHEL 7
+      ansible.builtin.yum:
+        name: yum-cron
+        state: latest
+
+    - name: Enable yum-cron service for RHEL 7
+      ansible.builtin.systemd:
+        name: yum-cron
+        state: started
+        enabled: true
+
+  when: ansible_facts['os_family'] == 'RedHat' and ansible_facts['distribution_major_version'] == '7'
+
+- name: Install and configure tools for RHEL 8 and 9
+  block:
+    - name: Install dnf-automatic for RHEL 8 and 9
+      ansible.builtin.yum:
+        name: dnf-automatic
+        state: latest
+
+    - name: Enable dnf-automatic.timer for RHEL 8 and 9
+      ansible.builtin.systemd:
+        name: dnf-automatic.timer
+        state: started
+        enabled: true
+
+  when: ansible_facts['os_family'] == 'RedHat' and ansible_facts['distribution_major_version'] in ['8', '9']
+
+- name: Yum upgrade all
+  ansible.builtin.yum:
+    name: '*'
+    state: latest

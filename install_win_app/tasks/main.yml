@@ -1,0 +1,12 @@
+- name: Application Install and Update - Mozilla Firefox ESR
+  win_chocolatey:
+    name:
+    - firefoxesr
+    state: latest
+    ignore_checksums: true
+#- name: Application Remove - Google Chrome
+#  win_chocolatey:
+#    name:
+#    - googlechrome
+#    state: absent
+#    remove_dependencies: true

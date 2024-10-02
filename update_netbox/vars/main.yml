@@ -1,0 +1,7 @@
+interface_name: "eth0"
+vm_role: "Virtual Machine"
+vm_tenant: "Boldyn Networks Management"
+vm_tenant_group: "Boldyn Networks Management"
+vm_status: "active"
+vrf: "_inside_vrf"
+netbox_url: "https://tw-dwt-vm-netbox-01.transitwireless.net/"
