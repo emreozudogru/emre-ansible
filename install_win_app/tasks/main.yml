@@ -1,12 +1,45 @@
-- name: Application Install and Update - Mozilla Firefox ESR
+- name: Application Install and Update - Chocolatey
+  win_chocolatey:
+    name:
+    - chocolatey
+    state: latest
+    ignore_checksums: true
+
+- name: Application Install Applications
   win_chocolatey:
     name:
     - firefoxesr
+    - topgrade
+    - PSWindowsUpdate 
     state: latest
     ignore_checksums: true
-#- name: Application Remove - Google Chrome
-#  win_chocolatey:
-#    name:
-#    - googlechrome
-#    state: absent
-#    remove_dependencies: true
+- name: Application Remove Applications
+  win_chocolatey:
+    name:
+    - googlechrome
+    state: absent
+    remove_dependencies: true
+
+- name: Install VMware guest agent and remove KVM guest agent
+  block:
+    - name: Install VMware guest agent
+      win_chocolatey:
+        name: vmware-tools
+        state: present
+    - name: Remove KVM guest agent
+      win_chocolatey:
+        name: qemu-guest-agent
+        state: absent
+  when: ansible_facts['virtualization_type'] == 'VMware'
+
+- name: Install KVM guest agent and remove VMware guest agent
+  block:
+    - name: Install KVM guest agent
+      win_chocolatey:
+        name: qemu-guest-agent
+        state: present
+    - name: Remove VMware guest agent
+      win_chocolatey:
+        name: vmware-tools
+        state: absent
+  when: ansible_facts['virtualization_type'] == 'kvm'

@@ -17,7 +17,8 @@
       vcpus: "{{ ansible_processor_vcpus }}"
       memory: "{{ ansible_memtotal_mb }}"
       disk: "{{ ansible_devices.sda.size[:-6] }}"
-      platform: "{{ 'Proxmox' if hostvars[inventory_hostname]['cluster'] in ['DWT', 'NYC', 'QUE', 'BRK', 'BRX', 'DWTCORE'] else 'VMware' if hostvars[inventory_hostname]['cluster'] in ['BRK-PROD', 'BRX-PROD', 'DWT-PROD', 'NYC-PROD', 'QUE-PROD', 'DWT-CORE'] else '' }}"
+#      platform: "{{ 'Proxmox' if hostvars[inventory_hostname]['cluster'] in ['DWT', 'NYC', 'QUE', 'BRK', 'BRX', 'DWTCORE'] else 'VMware' if hostvars[inventory_hostname]['cluster'] in ['BRK-PROD', 'BRX-PROD', 'DWT-PROD', 'NYC-PROD', 'QUE-PROD', 'DWT-CORE'] else '' }}"
+      platform: "{{ 'Proxmox' if ansible_facts['virtualization_type'] == 'kvm' else ansible_facts['virtualization_type'] }}"
     state: present
   register: vm_result
   delegate_to: 127.0.0.1

@@ -9,6 +9,29 @@
       - ipa-client
       - ncdu
     state: latest
+- name: Install VMware open-vm-tools and remove KVM qemu-guest-agent 
+  block:
+    - name: Install VMware guest agent
+      ansible.builtin.yum:
+        name: open-vm-tools
+        state: latest
+    - name: Remove KVM guest agent
+      ansible.builtin.yum:
+        name: qemu-guest-agent
+        state: absent
+  when: ansible_facts['virtualization_type'] == 'VMware'
+
+- name: Install KVM qemu-guest-agent  and remove VMware open-vm-tools
+  block:
+    - name: Install KVM guest agent
+      ansible.builtin.yum:
+        name: qemu-guest-agent
+        state: latest
+    - name: Remove VMware guest agent
+      ansible.builtin.yum:
+        name: open-vm-tools
+        state: absent
+  when: ansible_facts['virtualization_type'] == 'kvm'
 
 - name: Install and configure tools for RHEL 7
   block:
