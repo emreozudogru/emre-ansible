@@ -20,4 +20,15 @@
     name: epel-release
     state: present
   when: ansible_os_family == 'RedHat' and ansible_distribution_major_version|int == 7
-  
+
+- name: Check if EPEL repository file exists
+  stat:
+    path: /etc/yum.repos.d/epel.repo
+  register: epel_repo_file
+- name: Add exclusion to EPEL repository
+  ini_file:
+    path: /etc/yum.repos.d/epel.repo
+    section: epel
+    option: excludepkgs
+    value: zabbix*
+  when: epel_repo_file.stat.exists
