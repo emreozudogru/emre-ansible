@@ -1,0 +1,35 @@
+- name: Initialize CSV file
+  copy:
+    content: "Account,User,Created,Last Login\n"
+    dest: "{{ output_file }}"
+
+- name: Get list of IAM users
+  aws_iam_info:
+    aws_access_key: "{{ item.access_key }}"
+    aws_secret_key: "{{ item.secret_key }}"
+    region: "{{ item.region }}"
+  with_items: "{{ aws_accounts }}"
+  register: iam_users
+
+- name: Collect user details
+  set_fact:
+    user_details: "{{ iam_users.results | map(attribute='users') | sum(start=[]) | list }}"
+
+- name: Get user creation and last login details
+  aws_iam_info:
+    aws_access_key: "{{ item.0.access_key }}"
+    aws_secret_key: "{{ item.0.secret_key }}"
+    region: "{{ item.0.region }}"
+    user_name: "{{ item.1.user_name }}"
+  with_nested:
+    - "{{ aws_accounts }}"
+    - "{{ user_details }}"
+  register: user_info
+
+- name: Append user audit information to CSV
+  lineinfile:
+    path: "{{ output_file }}"
+    line: "Account: {{ item.0.name }}, User: {{ item.1.user_name }}, Created: {{ item.1.create_date }}, Last Login: {{ item.1.password_last_used }}"
+  with_nested:
+    - "{{ aws_accounts }}"
+    - "{{ user_info.results | map(attribute='user') | list }}"
