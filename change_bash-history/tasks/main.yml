@@ -22,3 +22,15 @@
     state: present
     line: 'HISTTIMEFORMAT="%Y-%m-%d %H:%M:%S "'
     create: yes
+- name: Set Bash history length for /etc/profile 
+  lineinfile:
+    path: /etc/profile
+    state: present
+    line: 'HISTSIZE=10000'
+    create: yes
+- name: Set Bash history timestamp format for /etc/profile 
+  lineinfile:
+    path: /etc/profile
+    state: present
+    line: 'HISTTIMEFORMAT="%Y-%m-%d %H:%M:%S "'
+    create: yes
