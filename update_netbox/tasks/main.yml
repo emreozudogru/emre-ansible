@@ -4,6 +4,59 @@
     filter: ansible_*
 
 
+- name: Get existing interfaces from NetBox
+  uri:
+    url: "{{ netbox_url }}/api/virtualization/interfaces/?virtual_machine={{ inventory_hostname }}"
+    headers:
+      Authorization: "Token {{ netbox_token }}"
+      Accept: 'application/json'
+    method: GET
+    validate_certs: false
+  register: netbox_interfaces
+  delegate_to: 127.0.0.1
+
+- name: Delete non-existent interfaces and their IPs from NetBox
+  block:
+    - name: Get IP addresses for non-existent interfaces from NetBox
+      uri:
+        url: "{{ netbox_url }}/api/ipam/ip-addresses/?virtual_machine={{ inventory_hostname }}"
+        headers:
+          Authorization: "Token {{ netbox_token }}"
+          Accept: 'application/json'
+        method: GET
+        validate_certs: false
+      register: all_interface_ips
+      delegate_to: 127.0.0.1
+
+    - name: Delete IP addresses of non-existent interfaces
+      netbox.netbox.netbox_ip_address:
+        netbox_url: "{{ netbox_url }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          address: "{{ item.address }}"
+        state: absent
+      delegate_to: 127.0.0.1
+      loop: "{{ all_interface_ips.json.results }}"
+      when: 
+        - item.assigned_object is defined
+        - item.assigned_object.name not in ansible_interfaces
+        - item.address is defined
+      ignore_errors: true
+
+    - name: Delete non-existent interfaces
+      netbox.netbox.netbox_vm_interface:
+        netbox_url: "{{ netbox_url }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          name: "{{ item.name }}"
+          virtual_machine: "{{ inventory_hostname }}"
+        state: absent
+      delegate_to: 127.0.0.1
+      loop: "{{ netbox_interfaces.json.results }}"
+      when: item.name not in ansible_interfaces
+      ignore_errors: true
+
+
 - name: Create VM in NetBox
   netbox.netbox.netbox_virtual_machine:
     netbox_url: "{{ netbox_url }}"
@@ -17,36 +70,46 @@
       vcpus: "{{ ansible_processor_vcpus }}"
       memory: "{{ ansible_memtotal_mb }}"
       disk: "{{ ansible_devices.sda.size[:-6] }}"
-#      platform: "{{ 'Proxmox' if hostvars[inventory_hostname]['cluster'] in ['DWT', 'NYC', 'QUE', 'BRK', 'BRX', 'DWTCORE'] else 'VMware' if hostvars[inventory_hostname]['cluster'] in ['BRK-PROD', 'BRX-PROD', 'DWT-PROD', 'NYC-PROD', 'QUE-PROD', 'DWT-CORE'] else '' }}"
       platform: "{{ 'Proxmox' if ansible_facts['virtualization_type'] == 'kvm' else ansible_facts['virtualization_type'] }}"
     state: present
   register: vm_result
   delegate_to: 127.0.0.1
 
-- name: Create interface for VM in NetBox
+- name: Create interfaces for VM in NetBox
   netbox.netbox.netbox_vm_interface:
     netbox_url: "{{ netbox_url }}"
     netbox_token: "{{ netbox_token }}"
     data:
-      name: "{{ interface_name }}"
+      name: "{{ item }}"
       virtual_machine: "{{ inventory_hostname }}"
-      mac_address: "{{ ansible_default_ipv4.macaddress }}"
+      mac_address: "{{ ansible_facts[item]['macaddress'] | default(omit) }}"
     state: present
   delegate_to: 127.0.0.1
+  loop: "{{ ansible_interfaces }}"
+  when: 
+    - item != 'lo'
+    - ansible_facts[item] is defined
+    - ansible_facts[item]['macaddress'] is defined
 
-- name: Assign IP address to interface in NetBox
+- name: Assign IP addresses to interfaces in NetBox
   netbox.netbox.netbox_ip_address:
     netbox_url: "{{ netbox_url }}"
     netbox_token: "{{ netbox_token }}"
     data:
-      address: "{{ ansible_default_ipv4.address }}/{{ ansible_default_ipv4.prefix }}"
+      address: "{{ ansible_facts[item]['ipv4']['address'] }}/{{ ansible_facts[item]['ipv4']['prefix'] }}"
       assigned_object:
-        name: "{{ interface_name }}"
+        name: "{{ item }}"
         virtual_machine: "{{ inventory_hostname }}"
       vrf: "{{ vrf }}"
       dns_name: "{{ ansible_fqdn }}"
     state: present
   delegate_to: 127.0.0.1
+  loop: "{{ ansible_interfaces }}"
+  when: 
+    - item != 'lo'
+    - ansible_facts[item] is defined
+    - ansible_facts[item]['ipv4'] is defined
+    - ansible_facts[item]['ipv4']['address'] is defined
 
 - name: Assign Primary IPv4 address to VM in NetBox
   netbox.netbox.netbox_virtual_machine:
