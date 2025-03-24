@@ -1,5 +1,5 @@
 ---
 - name: Restart Zabbix agent
   ansible.builtin.service:
-    name: zabbix-agent
+    name: "{{ zabbix_agent_package.stdout }}" 
     state: restarted
