@@ -1,0 +1,69 @@
+---
+- name: Check if cluster variable is defined
+  ansible.builtin.fail:
+    msg: "Cluster variable is not defined for host {{ inventory_hostname }}. Please define it in your inventory."
+  when: cluster is not defined
+
+- name: Get proxy server based on cluster variable
+  ansible.builtin.set_fact:
+    zabbix_proxy_server: "{{ hostvars[inventory_hostname]['zabbix_proxy_mapping'][cluster] | default('') }}"
+    zabbix_proxy_name: "{{ zabbix_proxy_mapping[cluster] | default('') }}"
+  failed_when: zabbix_proxy_name == ''
+
+- name: Install Zabbix agent package
+  ansible.builtin.package:
+    name: zabbix-agent
+    state: present
+
+- name: Configure Zabbix agent to accept connections from proxy
+  ansible.builtin.template:
+    src: zabbix_agentd.conf.j2
+    dest: /etc/zabbix/zabbix_agentd.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart Zabbix agent
+
+- name: Ensure Zabbix agent service is enabled and started
+  ansible.builtin.service:
+    name: zabbix-agent
+    state: started
+    enabled: yes
+
+- name: Create host groups if they don't exist
+  community.zabbix.zabbix_group:
+    server_url: "{{ zabbix_server_url }}"
+    login_user: "{{ zabbix_api_user }}"
+    login_password: "{{ zabbix_api_password }}"
+    state: present
+    groups:
+      - "{{ cluster }}"
+      - "Linux servers"
+
+- name: Add host to Zabbix server with the correct proxy
+  community.zabbix.zabbix_host:
+    server_url: "{{ zabbix_server_url }}"
+    login_user: "{{ zabbix_api_user }}"
+    login_password: "{{ zabbix_api_password }}"
+    host_name: "{{ ansible_hostname }}"
+    visible_name: "{{ inventory_hostname }}"
+    description: "Added by Ansible on {{ ansible_date_time.date }}"
+    host_groups:
+      - "{{ cluster }}"
+      - "Linux servers"
+    link_templates:
+      - "Template OS Linux by Zabbix agent"
+    status: enabled
+    proxy: "{{ zabbix_proxy_name }}"
+    interfaces:
+      - type: 1
+        main: 1
+        useip: 1
+        ip: "{{ ansible_default_ipv4.address }}"
+        dns: ""
+        port: "{{ zabbix_agent_port }}"
+    inventory_mode: automatic
+    state: present
+
+- name: Create host handler
+  ansible.builtin.meta: flush_handlers

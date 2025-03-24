@@ -1,0 +1,8 @@
+# Zabbix Agent configuration file
+PidFile=/var/run/zabbix/zabbix_agentd.pid
+LogFile=/var/log/zabbix/zabbix_agentd.log
+LogFileSize=0
+Server={{ zabbix_proxy_server }}
+ServerActive={{ zabbix_proxy_server }}
+Hostname={{ ansible_hostname }}
+Include=/etc/zabbix/zabbix_agentd.d/*.conf
