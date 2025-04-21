@@ -1,0 +1,32 @@
+- name: Get system serial number {{ cimc_ip }}
+  uri:
+    url: "https://{{ cimc_ip }}/redfish/v1/Systems"
+    method: GET
+    user: "{{ cimc_username }}"
+    password: "{{ cimc_password }}"
+    validate_certs: no
+    force_basic_auth: yes
+  register: systems
+
+#- name: Debug systems
+#  debug:
+#    var: systems.json.Members
+
+- name: Set Power Restore Policy to Restore Last State {{ cimc_ip }}
+  uri:
+    url: "https://{{ cimc_ip }}/redfish/v1/Systems/{{ member['@odata.id'].split('/')[-1] }}"
+    method: PATCH
+    user: "{{ cimc_username }}"
+    password: "{{ cimc_password }}"
+    body: '{"PowerRestorePolicy": "LastState"}'
+    validate_certs: no
+    force_basic_auth: yes
+  loop: "{{ systems.json.Members }}"
+  loop_control:
+    loop_var: member
+    label: "{{ member['@odata.id'].split('/')[-1] }}"
+#  register: result
+
+#- name: Debug result
+#  debug:
+#    var: result

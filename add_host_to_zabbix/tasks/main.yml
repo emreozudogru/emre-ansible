@@ -1,114 +1,109 @@
-- name: Check if cluster variable is defined
-  ansible.builtin.fail:
-    msg: "Cluster variable is not defined for host {{ inventory_hostname }}. Please define it in your inventory."
-  when: cluster is not defined
+---
+- name: Validate prerequisites
+  block:
+    - name: Check if cluster variable is defined
+      ansible.builtin.fail:
+        msg: "Cluster variable is not defined for host {{ inventory_hostname }}"
+      when: not cluster is defined
 
-- name: Get proxy server based on cluster variable
-  ansible.builtin.set_fact:
-    zabbix_proxy_server: "{{ hostvars[inventory_hostname]['zabbix_proxy_mapping'][cluster] | default('') }}"
-    zabbix_proxy_name: "{{ zabbix_proxy_mapping[cluster] | default('') }}"
-  failed_when: zabbix_proxy_name == ''
+    - name: Validate proxy configuration
+      ansible.builtin.set_fact:
+        zabbix_proxy_info: "{{ zabbix_proxy_mapping[cluster] | default({}) }}"
+      failed_when: not zabbix_proxy_info
 
-- name: Determine installed Zabbix agent package
-  ansible.builtin.shell: |
-    AGENT1=$(rpm -q zabbix-agent >/dev/null 2>&1 && echo "true" || echo "false")
-    AGENT2=$(rpm -q zabbix-agent2 >/dev/null 2>&1 && echo "true" || echo "false")
-    if [ "$AGENT1" = "true" ] && [ "$AGENT2" = "true" ]; then
-      echo "both"
-    elif [ "$AGENT1" = "true" ]; then
-      echo "zabbix-agent"
-    elif [ "$AGENT2" = "true" ]; then
-      echo "zabbix-agent2"
-    else
-      echo "none"
-    fi
-  register: zabbix_agent_package
+- name: Check Zabbix agent installation
+  block:
+    - name: Detect installed Zabbix agent version
+      ansible.builtin.shell: |
+        if rpm -q zabbix-agent >/dev/null 2>&1; then
+          if rpm -q zabbix-agent2 >/dev/null 2>&1; then
+            echo "both"
+          else
+            echo "zabbix-agent"
+          fi
+        elif rpm -q zabbix-agent2 >/dev/null 2>&1; then
+          echo "zabbix-agent2"
+        else
+          echo "none"
+        fi
+      register: zabbix_agent_package
+      changed_when: false
 
-- name: Fail if both Zabbix agents are installed
-  ansible.builtin.fail:
-    msg: "Both zabbix-agent and zabbix-agent2 are installed on host {{ inventory_hostname }}. Please remove one of them."
-  when: zabbix_agent_package.stdout == "both"
+    - name: Validate agent installation
+      ansible.builtin.fail:
+        msg: "{{ error_message }}"
+      vars:
+        error_message: >-
+          {% if zabbix_agent_package.stdout == 'both' %}
+          Both zabbix-agent and zabbix-agent2 are installed
+          {% elif zabbix_agent_package.stdout == 'none' %}
+          No Zabbix agent is installed
+          {% endif %}
+      when: zabbix_agent_package.stdout in ['both', 'none']
 
-- name: Fail if no Zabbix agent is installed
-  ansible.builtin.fail:
-    msg: "Neither zabbix-agent nor zabbix-agent2 is installed on host {{ inventory_hostname }}."
-  when: zabbix_agent_package.stdout == "none"
+- name: Configure Zabbix agent
+  block:
+    - name: Set agent configuration
+      ansible.builtin.set_fact:
+        zabbix_config_file: "/etc/zabbix/{{ 'zabbix_agentd.conf' if zabbix_agent_package.stdout == 'zabbix-agent' else 'zabbix_agent2.conf' }}"
 
-- name: Set configuration file path based on installed package
-  ansible.builtin.set_fact:
-    zabbix_config_file: "/etc/zabbix/{{ 'zabbix_agentd.conf' if zabbix_agent_package.stdout == 'zabbix-agent' else 'zabbix_agent2.conf' }}"
+    - name: Update agent configuration
+      ansible.builtin.lineinfile:
+        path: "{{ zabbix_config_file }}"
+        regexp: "^{{ item.key }}="
+        line: "{{ item.key }}={{ item.value }}"
+        state: present
+      loop:
+        - key: Server
+          value: "{{ zabbix_proxy_info.ip }}"
+        - key: ServerActive
+          value: "{{ zabbix_proxy_info.ip }}"
+        - key: Hostname
+          value: "{{ ansible_hostname }}"
+      notify: Restart Zabbix agent
 
-- name: Configure Zabbix agent to accept connections from proxy
-  ansible.builtin.lineinfile:
-    path: "{{ zabbix_config_file }}"
-    regexp: '^Server='
-    line: "Server={{ zabbix_proxy_mapping[cluster].ip }}"
-    state: present
-  notify:
-    - Restart Zabbix agent
+    - name: Ensure agent service is running
+      ansible.builtin.service:
+        name: "{{ zabbix_agent_package.stdout }}"
+        state: started
+        enabled: true
 
-- name: Configure Zabbix agent to accept active connections from proxy
-  ansible.builtin.lineinfile:
-    path: "{{ zabbix_config_file }}"
-    regexp: '^ServerActive='
-    line: "ServerActive={{ zabbix_proxy_mapping[cluster].ip }}"
-    state: present
-  notify:
-    - Restart Zabbix agent
+- name: Register host with Zabbix server
+  block:
+    - name: Set host group name
+      ansible.builtin.set_fact:
+        formatted_group_name: "tw-{{ cluster | lower | regex_replace('^([a-z]{3}).*', '\\1') }}-bsh-systems-vm"
 
-- name: Set Zabbix agent hostname
-  ansible.builtin.lineinfile:
-    path: "{{ zabbix_config_file }}"
-    regexp: '^Hostname='
-    line: "Hostname={{ ansible_hostname }}"
-    state: present
+    - name: Add host to Zabbix
+      community.zabbix.zabbix_host:
+        host_name: "{{ inventory_hostname }}"
+        visible_name: "{{ inventory_hostname }}"
+        description: "Added by Ansible on {{ ansible_date_time.date }}"
+        host_groups:
+          - "{{ formatted_group_name }}"
+        link_templates:
+          - "Template OS Linux"
+        status: enabled
+        state: present
+        force: false
+        inventory_mode: automatic
+        monitored_by: proxy
+        proxy: "{{ zabbix_proxy_info.name }}"
+        interfaces:
+          - type: agent
+            main: 1
+            useip: 1
+            ip: "{{ ansible_default_ipv4.address }}"
+            dns: ""
+            port: "{{ zabbix_agent_port }}"
+      vars:
+        ansible_network_os: community.zabbix.zabbix
+        ansible_connection: httpapi
+        ansible_httpapi_use_ssl: true
+        ansible_httpapi_validate_certs: false
+        ansible_zabbix_auth_key: "{{ zabbix_api_key }}"
+        ansible_zabbix_url_path: ''
+      delegate_to: "{{ zabbix_server }}"
 
-- name: Ensure Zabbix agent service is enabled and started
-  ansible.builtin.service:
-    name: "{{ zabbix_agent_package.stdout }}"
-    state: started
-    enabled: yes
-
-- name: Set formatted host group name
-  ansible.builtin.set_fact:
-    formatted_group_name: "tw-{{ cluster | lower | regex_replace('^([a-z]{3}).*', '\\1') }}-bsh-systems-vm"
-
-# Optional debug task to verify transformation
-- name: Debug host group name
-  debug:
-    msg: "Cluster: {{ cluster }} -> Group: {{ formatted_group_name }}"
-
-- name: Add host to Zabbix server with the correct proxy
-  vars:
-    ansible_network_os: community.zabbix.zabbix
-    ansible_connection: httpapi
-    server_url: "10.48.90.50"
-    ansible_httpapi_use_ssl: true
-    ansible_httpapi_validate_certs: false
-    ansible_zabbix_auth_key: "6132b9a45806afc77b7579db7050436b8fe9a1c591e53961c97fe9879d0fec6e"
-    ansible_zabbix_url_path: ''  
-  delegate_to: 10.48.90.50
-  community.zabbix.zabbix_host:
-    host_name: "{{ inventory_hostname }}"
-    visible_name: "{{ inventory_hostname }}"
-    description: "Added by Ansible on {{ ansible_date_time.date }}"
-    host_groups:
-      - "{{ formatted_group_name }}"
-    link_templates:
-      - "Template OS Linux"
-    status: enabled
-    state: present
-    force: false  # This prevents overwriting existing configuration
-    inventory_mode: automatic
-    monitored_by: proxy
-    proxy: "{{ zabbix_proxy_mapping[cluster].name }}"
-    interfaces:
-      - type: agent
-        main: 1
-        useip: 1
-        ip: "{{ ansible_default_ipv4.address }}"
-        dns: ""
-        port: "{{ zabbix_agent_port }}"
-
-- name: Create host handler
+- name: Ensure handlers are run
   ansible.builtin.meta: flush_handlers
