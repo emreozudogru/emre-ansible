@@ -1,0 +1,18 @@
+- name: Copy modem firmware with interactive prompt
+  ansible.netcommon.cli_command:
+    command: copy disk1: flash:
+    prompt: "Destination filename"
+    answer: "FN990A40_45.00.115_CUST_5694_MI_SIGNED_STREAM.bin"
+  when: modem_firmware_filename is defined
+
+- name: Run modem firmware upgrade
+  ansible.netcommon.cli_command:
+    command: |
+      configure terminal
+      interface modem 1
+      modem firmware upgrade flash FN990A40_45.00.115_CUST_5694_MI_SIGNED_STREAM.bin
+      interface modem 3
+      modem firmware upgrade flash FN990A40_45.00.115_CUST_5694_MI_SIGNED_STREAM.bin
+      interface Expansion 1
+      modem firmware upgrade flash FN990A40_45.00.115_CUST_5694_MI_SIGNED_STREAM.bin
+      end
