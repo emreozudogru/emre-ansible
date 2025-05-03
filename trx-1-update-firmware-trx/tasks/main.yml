@@ -1,0 +1,13 @@
+---
+- name: Copy KlasOS firmware with no interactive prompt
+  ansible.netcommon.cli_command:
+    command: copy disk1: flash:
+    prompt: "Destination filename"
+    answer: "KlasOS.keel.v5.4.2rc2.bin"
+- name: Boot system from new firmware
+  ansible.netcommon.cli_command:
+  command: |
+    configure terminal
+    boot system flash KlasOS.keel.v5.4.2rc2.bin
+    end
+    reload
