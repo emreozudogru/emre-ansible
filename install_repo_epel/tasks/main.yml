@@ -37,6 +37,7 @@
   stat:
     path: /etc/yum.repos.d/epel.repo
   register: epel_repo_file
+  
 - name: Add exclusion to EPEL repository
   ini_file:
     path: /etc/yum.repos.d/epel.repo
