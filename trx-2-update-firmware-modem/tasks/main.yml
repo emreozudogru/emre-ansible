@@ -5,14 +5,14 @@
     prompt: "Destination filename"
     answer: "FN990A40_45.00.115_CUST_5694_MI_SIGNED_STREAM.bin"
 
-- name: Run modem firmware upgrade
-  ansible.netcommon.cli_command:
-    command: |
-      configure terminal
-      interface modem 1
-      modem firmware upgrade flash FN990A40_45.00.115_CUST_5694_MI_SIGNED_STREAM.bin
-      interface modem 3
-      modem firmware upgrade flash FN990A40_45.00.115_CUST_5694_MI_SIGNED_STREAM.bin
-      interface Expansion 1
-      modem firmware upgrade flash FN990A40_45.00.115_CUST_5694_MI_SIGNED_STREAM.bin
-      end
+#- name: Run modem firmware upgrade
+#  ansible.netcommon.cli_command:
+#    command: |
+#      configure terminal
+#      interface modem 1
+#      modem firmware upgrade flash FN990A40_45.00.115_CUST_5694_MI_SIGNED_STREAM.bin
+#      interface modem 3
+#      modem firmware upgrade flash FN990A40_45.00.115_CUST_5694_MI_SIGNED_STREAM.bin
+#      interface Expansion 1
+#      modem firmware upgrade flash FN990A40_45.00.115_CUST_5694_MI_SIGNED_STREAM.bin
+#      end
