@@ -1,3 +1,5 @@
+# NOTE: This role captures Emre's baseline Linux lifecycle standards for production hosts.
+# Keep package and service logic aligned with operational runbooks.
 - name: Install common tools
   ansible.builtin.yum:
     name:
